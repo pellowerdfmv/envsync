@@ -1,11 +1,14 @@
 """Command-line interface for envsync."""
 
+from __future__ import annotations
+
 import argparse
 import sys
 
-from envsync.differ import diff_envs
 from envsync.parser import parse_env_file
 from envsync.validator import validate
+from envsync.differ import diff_envs
+from envsync.auditor import audit_env
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -15,55 +18,63 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    # check subcommand
-    check = sub.add_parser("check", help="Validate a .env file against a reference.")
-    check.add_argument("reference", help="Reference env file (e.g. .env.example)")
-    check.add_argument("target", help="Target env file to validate (e.g. .env)")
+    # check
+    check_p = sub.add_parser("check", help="Validate a .env file against a reference template.")
+    check_p.add_argument("reference", help="Reference / template .env file")
+    check_p.add_argument("target", help="Target .env file to validate")
 
-    # diff subcommand
-    diff = sub.add_parser("diff", help="Show differences between two .env files.")
-    diff.add_argument("source", help="Source env file")
-    diff.add_argument("target", help="Target env file")
-    diff.add_argument(
-        "--values",
-        action="store_true",
-        default=False,
-        help="Also compare values, not just keys.",
-    )
+    # diff
+    diff_p = sub.add_parser("diff", help="Show differences between two .env files.")
+    diff_p.add_argument("source", help="Source .env file")
+    diff_p.add_argument("target", help="Target .env file")
+    diff_p.add_argument("--values", action="store_true", help="Include value differences")
+
+    # audit  <-- new sub-command
+    audit_p = sub.add_parser("audit", help="Audit a .env file for security and quality issues.")
+    audit_p.add_argument("target", help=".env file to audit")
 
     return parser
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    reference = parse_env_file(args.reference)
-    target = parse_env_file(args.target)
-    result = validate(reference, target)
+    ref = parse_env_file(args.reference)
+    tgt = parse_env_file(args.target)
+    result = validate(ref, tgt, args.target)
     print(result.summary())
     return 0 if result.is_valid else 1
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
-    source = parse_env_file(args.source)
-    target = parse_env_file(args.target)
-    result = diff_envs(source, target, compare_values=args.values)
-    if result.has_differences:
-        print(f"Differences between {args.source!r} and {args.target!r}:")
-        print(result.summary())
-        return 1
-    print("No differences found.")
-    return 0
+    src = parse_env_file(args.source)
+    tgt = parse_env_file(args.target)
+    result = diff_envs(src, tgt, compare_values=args.values)
+    print(result.summary())
+    return 0 if not result.has_differences else 1
 
 
-def main() -> None:
+def cmd_audit(args: argparse.Namespace) -> int:
+    env = parse_env_file(args.target)
+    result = audit_env(args.target, env)
+    print(result.summary())
+    return 0 if not result.has_issues else 1
+
+
+def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
-    args = parser.parse_args()
-    if args.command == "check":
-        sys.exit(cmd_check(args))
-    elif args.command == "diff":
-        sys.exit(cmd_diff(args))
-    else:
+    args = parser.parse_args(argv)
+
+    handlers = {
+        "check": cmd_check,
+        "diff": cmd_diff,
+        "audit": cmd_audit,
+    }
+
+    handler = handlers.get(args.command)
+    if handler is None:
         parser.print_help()
         sys.exit(1)
+
+    sys.exit(handler(args))
 
 
 if __name__ == "__main__":
