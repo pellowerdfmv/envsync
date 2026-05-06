@@ -75,3 +75,15 @@ def audit_env(path: str, env: Dict[str, Optional[str]]) -> AuditResult:
             pass  # intentionally not flagged; high false-positive rate
 
     return result
+
+
+def audit_multiple(paths_and_envs: Dict[str, Dict[str, Optional[str]]]) -> List[AuditResult]:
+    """Audit multiple env files and return a list of AuditResults.
+
+    Args:
+        paths_and_envs: A mapping of file path to its parsed env dict.
+
+    Returns:
+        A list of :class:`AuditResult` instances, one per path.
+    """
+    return [audit_env(path, env) for path, env in paths_and_envs.items()]
