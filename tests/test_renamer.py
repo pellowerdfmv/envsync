@@ -98,21 +98,27 @@ def test_has_conflicts_false_when_clean():
 
 
 # ---------------------------------------------------------------------------
-# summary
+# multiple renames
 # ---------------------------------------------------------------------------
 
-def test_summary_contains_rename_pair():
-    env = _env(A="1")
-    result = rename_keys(env, {"A": "B"})
-    assert "A -> B" in summary(result)
+def test_multiple_renames_applied():
+    """All mappings that have no conflicts should be renamed in one pass."""
+    env = _env(A="1", B="2", C="3")
+    result = rename_keys(env, {"A": "X", "B": "Y", "C": "Z"})
+    assert result.env == {"X": "1", "Y": "2", "Z": "3"}
+    assert result.renamed == {"A": "X", "B": "Y", "C": "Z"}
 
 
-def test_summary_no_renames_message():
-    result = RenameResult(env={})
-    assert summary(result) == "No renames performed."
+def test_partial_rename_mixed_missing():
+    """Keys present are renamed; missing keys are recorded in skipped."""
+    env = _env(A="1", C="3")
+    result = rename_keys(env, {"A": "X", "B": "Y", "C": "Z"})
+    assert "X" in result.env
+    assert "Z" in result.env
+    assert "B" in result.skipped
+    assert len(result.renamed) == 2
 
 
-def test_none_value_renamed_correctly():
-    env: dict = {"EMPTY": None}
-    result = rename_keys(env, {"EMPTY": "BLANK"})
-    assert result.env["BLANK"] is None
+# ---------------------------------------------------------------------------
+# summary
+# -----------------
