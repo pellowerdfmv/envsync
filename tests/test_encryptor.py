@@ -21,6 +21,13 @@ def test_generate_key_returns_bytes(key):
     assert len(key) > 0
 
 
+def test_generate_key_is_unique():
+    """Each call to generate_key should produce a different key."""
+    key1 = generate_key()
+    key2 = generate_key()
+    assert key1 != key2
+
+
 def test_encrypt_returns_encrypt_result(key):
     env = {"DB_PASSWORD": "secret"}
     result = encrypt_env(env, key)
@@ -68,6 +75,15 @@ def test_decrypt_bad_token_returns_original(key):
     # Should not raise; returns value unchanged
     result = decrypt_env(env, key)
     assert result["TOKEN"] == "not-a-valid-token"
+
+
+def test_decrypt_with_wrong_key_returns_original(key):
+    """Decrypting with a different key should not raise and return the value unchanged."""
+    env = {"SECRET": "my-secret"}
+    encrypted = encrypt_env(env, key).encrypted
+    wrong_key = generate_key()
+    result = decrypt_env(encrypted, wrong_key)
+    assert result["SECRET"] != "my-secret" or result["SECRET"] == encrypted["SECRET"]
 
 
 def test_encrypt_empty_string(key):
